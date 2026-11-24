@@ -1,33 +1,58 @@
+/* ============================
+   Design tokens
+   ============================ */
+
+:root {
+  --bg: #f5f6f8;
+  --surface: #ffffff;
+  --border: #e5e7eb;
+  --text: #1f2937;
+  --muted: #6b7280;
+  --primary: #16a34a;
+  --primary-dark: #15803d;
+  --primary-soft: #ecfdf3;
+  --warn-bg: #fffbeb;
+  --warn-border: #fde68a;
+  --warn-text: #92400e;
+  --radius: 12px;
+  --shadow: 0 1px 2px rgba(16, 24, 40, 0.05), 0 1px 3px rgba(16, 24, 40, 0.08);
+}
+
 * {
   box-sizing: border-box;
 }
 
 body {
   margin: 0;
-  font-family: system-ui, -apple-system, sans-serif;
-  background: #f6f3ee;
-  color: #2b2b2b;
+  font-family: Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-size: 15px;
+  background: var(--bg);
+  color: var(--text);
   height: 100vh;
   display: flex;
   flex-direction: column;
 }
 
-/* ---------- header ---------- */
+/* ============================
+   Header
+   ============================ */
 
 header {
-  background: #2f6b4f;
-  color: white;
-  padding: 12px 20px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  padding: 12px 24px;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
+  gap: 12px;
 }
 
 header h1 {
   margin: 0;
-  font-size: 20px;
+  font-size: 18px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
 }
 
 .session {
@@ -37,112 +62,162 @@ header h1 {
   flex-wrap: wrap;
 }
 
+.session label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--muted);
+}
+
 .session input {
-  margin-left: 6px;
   width: 110px;
 }
 
 .conversation-select {
-  max-width: 260px;
-  padding: 7px 10px;
-  border: none;
-  border-radius: 6px;
+  max-width: 240px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
   font-size: 13px;
-  background: rgba(255, 255, 255, 0.9);
-  color: #2b2b2b;
+  background: var(--surface);
+  color: var(--text);
   cursor: pointer;
 }
 
-/* ---------- layout ---------- */
+/* ============================
+   Layout
+   ============================ */
 
 main {
   flex: 1;
   display: flex;
-  gap: 16px;
-  padding: 16px;
+  gap: 20px;
+  padding: 20px 24px;
   min-height: 0;
+  max-width: 1280px;
+  width: 100%;
+  margin: 0 auto;
+}
+
+.chat,
+.memory {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
 }
 
 .chat {
   flex: 1;
   display: flex;
   flex-direction: column;
-  background: white;
-  border-radius: 10px;
   min-height: 0;
+  min-width: 0;
 }
 
 .memory {
-  width: 280px;
-  background: white;
-  border-radius: 10px;
-  padding: 16px;
+  width: 300px;
+  padding: 20px;
   overflow-y: auto;
 }
 
-/* ---------- messages ---------- */
+/* ============================
+   Messages
+   ============================ */
 
 .messages {
   flex: 1;
   overflow-y: auto;
-  padding: 16px;
+  padding: 24px;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 12px;
 }
 
 .message {
   max-width: 75%;
-  padding: 10px 14px;
-  border-radius: 12px;
-  line-height: 1.45;
+  padding: 11px 15px;
+  border-radius: 16px;
+  line-height: 1.5;
   white-space: pre-wrap; /* keep the line breaks from the agent's reply */
+  overflow-wrap: anywhere;
 }
 
 .message.human {
   align-self: flex-end;
-  background: #2f6b4f;
+  background: var(--primary);
   color: white;
+  border-bottom-right-radius: 4px;
 }
 
 .message.ai {
   align-self: flex-start;
-  background: #eef1ec;
+  background: #f3f4f6;
+  border-bottom-left-radius: 4px;
 }
 
 .message.thinking {
-  color: #888;
+  color: var(--muted);
   font-style: italic;
 }
 
-/* ---------- input form ---------- */
+/* ============================
+   Form controls
+   ============================ */
 
 .chat-form {
   display: flex;
-  gap: 8px;
-  padding: 12px;
-  border-top: 1px solid #eee;
+  gap: 10px;
+  padding: 14px 16px;
+  border-top: 1px solid var(--border);
 }
 
 .chat-form input {
   flex: 1;
+  padding: 11px 16px;
+  border-radius: 999px;
+}
+
+input,
+textarea,
+select {
+  font-family: inherit;
 }
 
 input {
-  padding: 8px 10px;
-  border: 1px solid #ccc;
-  border-radius: 6px;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
   font-size: 14px;
+  background: var(--surface);
+  color: var(--text);
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.18);
 }
 
 button {
-  padding: 8px 14px;
+  padding: 8px 16px;
   border: none;
-  border-radius: 6px;
-  background: #e8a33d;
-  color: #2b2b2b;
+  border-radius: 8px;
+  background: var(--primary);
+  color: white;
+  font-family: inherit;
+  font-size: 14px;
   font-weight: 600;
   cursor: pointer;
+  transition: background 0.15s;
+}
+
+button:hover:not(:disabled) {
+  background: var(--primary-dark);
 }
 
 button:disabled {
@@ -150,49 +225,177 @@ button:disabled {
   cursor: wait;
 }
 
-button.secondary {
-  background: #eee;
+/* the send button is round-ended to match the input */
+#send-btn {
+  border-radius: 999px;
+  padding: 8px 22px;
 }
 
-/* ---------- memory panel ---------- */
+/* quieter buttons in the header and memory panel */
+.session button,
+button.secondary {
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border);
+  font-weight: 500;
+}
+
+.session button:hover:not(:disabled),
+button.secondary:hover:not(:disabled) {
+  background: #f3f4f6;
+}
+
+/* ============================
+   Memory panel
+   ============================ */
 
 .memory h2 {
   margin: 0;
-  font-size: 17px;
+  font-size: 16px;
+  font-weight: 650;
 }
 
 .memory h3 {
-  margin: 18px 0 6px;
-  font-size: 14px;
-  color: #2f6b4f;
+  margin: 22px 0 8px;
+  font-size: 11px;
+  font-weight: 650;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
 }
 
 .hint {
   margin: 4px 0 0;
   font-size: 12px;
-  color: #888;
+  color: var(--muted);
 }
 
 .memory ul {
   margin: 0;
-  padding-left: 18px;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
   font-size: 14px;
 }
 
-.memory li.empty {
-  list-style: none;
-  margin-left: -18px;
-  color: #999;
+.memory li {
+  padding: 7px 11px;
+  background: var(--primary-soft);
+  border-radius: 8px;
 }
 
-/* ---------- small screens: memory panel goes under the chat ---------- */
+.memory li.empty {
+  background: none;
+  padding: 0;
+  color: var(--muted);
+  font-style: italic;
+}
 
-@media (max-width: 700px) {
+.memory button.secondary {
+  margin-top: 22px;
+  width: 100%;
+}
+
+/* ============================
+   Human approval UI
+   ============================ */
+
+.approval-container {
+  align-self: flex-start;
+  width: min(100%, 520px);
+  padding: 18px;
+  background: var(--warn-bg);
+  border: 1px solid var(--warn-border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+
+.approval-container h3 {
+  margin: 0 0 14px;
+  font-size: 15px;
+  color: var(--warn-text);
+}
+
+.approval-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 14px;
+  padding: 14px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+.approval-card h4 {
+  margin: 0;
+  font-size: 13px;
+  font-family: Consolas, monospace;
+  color: var(--primary-dark);
+}
+
+.approval-card textarea {
+  width: 100%;
+  min-height: 100px;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  resize: vertical;
+  font-family: Consolas, monospace;
+  font-size: 13px;
+  background: #f9fafb;
+}
+
+.approval-card select {
+  width: 100%;
+  padding: 9px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.approval-container button {
+  width: 100%;
+  padding: 11px;
+}
+
+.approval-error {
+  margin: 0 0 10px;
+  font-size: 13px;
+  color: #b91c1c;
+}
+
+.approval-error:empty {
+  display: none;
+}
+
+/* ============================
+   Small screens
+   ============================ */
+
+@media (max-width: 760px) {
+  body {
+    height: auto;
+    min-height: 100vh;
+  }
+
   main {
     flex-direction: column;
+    padding: 12px;
+  }
+
+  .chat {
+    min-height: 70vh;
   }
 
   .memory {
     width: 100%;
   }
+
+  .message {
+    max-width: 90%;
+  }
 }
+
