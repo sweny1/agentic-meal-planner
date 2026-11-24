@@ -8,6 +8,12 @@ from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 from langgraph.store.postgres.aio import AsyncPostgresStore
 from pydantic import BaseModel
 
+import json
+
+from typing import Any
+from langgraph.types import Command
+from fastapi import HTTPException
+
 from core.config import DB_URI
 from agents.grocery_agent import grocery_namespace
 from agents.head_chef import build_head_chef
@@ -61,6 +67,13 @@ class ChatResponse(BaseModel):
     thread_id: str
     reply: str
 
+class StreamRequest(BaseModel):
+    user_id: str
+    thread_id: str
+    message: str | None = None                    # a new user turn ...
+    decisions: list[dict[str, Any]] | None = None  # ... or the answers to a pending approval
+
+
 
 # ---------- conversations list ----------
 
@@ -74,6 +87,43 @@ async def remember_conversation(request: ChatRequest):
     namespace = conversations_namespace(request.user_id)
     if await app.state.store.aget(namespace, request.thread_id) is None:
         await app.state.store.aput(namespace, request.thread_id, {'title': request.message[:60]})
+
+def ndjson(event: dict) -> str:
+    return json.dumps(event) + "\n"
+
+
+async def stream_agent(agent_input, config, user_id):
+    # one generator for both a new message and a resume after approval
+    try:
+        async for mode, chunk in app.state.head_chef.astream(
+            agent_input,
+            config=config,
+            context=UserContext(user_id=user_id),
+            stream_mode=["messages", "updates"],
+        ):
+            if mode == "messages":
+                token, metadata = chunk
+                if (
+                    isinstance(token, AIMessageChunk)
+                    and metadata.get("lc_agent_name") == "head_chef"
+                    and isinstance(token.content, str)
+                    and token.content
+                ):
+                    yield ndjson({"type": "token", "text": token.content})
+
+            elif "__interrupt__" in chunk:  # mode == "updates"
+                pending = chunk["__interrupt__"][0].value
+                yield ndjson({
+                    "type": "interrupt",
+                    "actions": pending["action_requests"],
+                    "review_configs": pending.get("review_configs", []),
+                })
+                return  # the graph is paused; the page sends decisions next
+
+        yield ndjson({"type": "completed"})
+
+    except Exception as e:
+        yield ndjson({"type": "error", "message": str(e)})
 
 
 # ---------- chat ----------
@@ -93,23 +143,33 @@ async def chat(request: ChatRequest):
     )
 
 
-@app.post('/chat/stream')
-async def chat_stream(request: ChatRequest):
-    await remember_conversation(request)
+@app.post("/chat/stream")
+async def chat_stream(request: StreamRequest):
+    config = {"configurable": {"thread_id": request.thread_id}}
+    state = await app.state.head_chef.aget_state(config)
 
-    async def tokens():
-        # astream + stream_mode='messages' gives (token, metadata) pairs as the LLM writes them
-        async for token, metadata in app.state.head_chef.astream(
-            {'messages': [('user', request.message)]},
-            {'configurable': {'thread_id': request.thread_id}},
-            context=UserContext(user_id=request.user_id),
-            stream_mode='messages',
-        ):
-            # tool results (ToolMessage) come through too, so only send the Head Chef's own words
-            if isinstance(token, AIMessageChunk) and metadata.get('lc_agent_name') == 'head_chef' and token.content:
-                yield token.content
+    if request.decisions is not None:  # ----- resume after approval
+        if not state.interrupts:
+            raise HTTPException(409, "No pending approval exists for this conversation.")
+        expected = len(state.interrupts[0].value["action_requests"])
+        if len(request.decisions) != expected:
+            raise HTTPException(400, "Provide one decision for each pending action.")
+        agent_input = Command(resume={"decisions": request.decisions})
 
-    return StreamingResponse(tokens(), media_type='text/plain')
+    elif request.message:  # ----- new message
+        if state.interrupts:
+            raise HTTPException(409, "This conversation is waiting for human approval.")
+        await remember_conversation(request)
+        agent_input = {"messages": [("user", request.message)]}
+
+    else:
+        raise HTTPException(400, "Send either a message or decisions.")
+
+    return StreamingResponse(
+        stream_agent(agent_input, config, request.user_id),
+        media_type="application/x-ndjson",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
 
 
 # ---------- look at the memory ----------
@@ -154,7 +214,32 @@ async def get_conversation_messages(thread_id: str):
         ],
     }
 
+@app.get("/chat/pending/{thread_id}")
+async def get_pending_approval(thread_id: str):
 
+    config = {
+        "configurable": {
+            "thread_id": thread_id
+        }
+    }
+
+    state = await app.state.head_chef.aget_state(config)
+
+    if not state.interrupts:
+        return {
+            "status": "none",
+            "actions": []
+        }
+
+    interrupt_data = state.interrupts[0].value
+
+    return {
+        "status": "interrupt",
+        "actions": interrupt_data["action_requests"],
+        "review_configs": interrupt_data.get(
+            "review_configs", []
+        )
+    }
 # ---------- the web page ----------
 
 # serve frontend/index.html, style.css and app.js at http://127.0.0.1:8001/
