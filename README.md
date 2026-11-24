@@ -10,7 +10,7 @@ come from a simple MCP server.
                   +---------------+   short-term memory  -> AsyncPostgresSaver (thread_id)
                   |   Head Chef   |   long-term memory   -> AsyncPostgresStore (user_id)
                   |  (supervisor) |   message trimming   -> trim_history middleware
-                  +---------------+
+                  +---------------+   human approval     -> HumanInTheLoopMiddleware
           /               |                \               \
   recipe_agent     nutrition_agent     grocery_agent     save_preference
   search_recipes   get_nutrition       get_price (MCP)   (long-term memory)
@@ -55,6 +55,8 @@ Every command runs **from the project folder** as a module (`uv run -m folder.fi
 | Long-term memory | `agents/memory.py` | `save_preference` writes to the store, `add_user_preferences` reads it into the prompt before every model call |
 | RAG | `rag/ingest_recipes.py`, `agents/recipe_agent.py` | recipes embedded into pgvector (`PGVector`), searched by `search_recipes` |
 | Agent isolation | `agents/head_chef.py`, `agents/grocery_agent.py`, `agents/memory.py` | each specialist gets only its own tools and only the request text (no chat history); `user_id` comes from `context=`, never from the LLM; store namespaces are `('users', user_id, ...)` |
+| Human in the loop (HITL) | `agents/head_chef.py`, `api/app.py`, `frontend/app.js` | `HumanInTheLoopMiddleware` pauses `save_preference` and `ask_grocery_agent` until a human approves, edits or rejects the call; the pause is saved in the checkpointer, so it survives a page reload |
+| Response streaming | `api/app.py`, `frontend/app.js` | `astream(stream_mode=['messages', 'updates'])` sends tokens and interrupts as NDJSON events; the page appends each token to the reply bubble |
 | Message trimming | `agents/memory.py` | `trim_history` sends only the last 10 messages to the LLM; the full chat stays in Postgres |
 | MCP server | `mcp_server/server.py` | FastMCP, streamable HTTP, no auth: `get_nutrition`, `get_price` |
 | Postgres in Docker | `docker-compose.yml` | `pgvector/pgvector:pg17` on port **5433** |
@@ -128,7 +130,8 @@ The names start with `project_` because Docker Compose uses the folder name (`Pr
 | Endpoint | What it does |
 |---|---|
 | `POST /chat` | `{user_id, thread_id, message}` -> full reply (`ainvoke`) |
-| `POST /chat/stream` | same body, reply streamed word by word (`astream`, `stream_mode='messages'`) |
+| `POST /chat/stream` | `{user_id, thread_id, message}` **or** `{user_id, thread_id, decisions}` -> NDJSON stream (see below). `message` starts a turn, `decisions` resumes a paused one |
+| `GET /chat/pending/{thread_id}` | is this conversation waiting for approval? returns the pending `actions` so the page can show the approval card again after a reload |
 | `GET /users/{user_id}/preferences` | long-term memory: saved facts |
 | `GET /users/{user_id}/grocery` | long-term memory: grocery list |
 | `GET /users/{user_id}/conversations` | the user's previous conversations (newest first), kept in the store |
@@ -139,6 +142,26 @@ The agents and the Postgres connections are created once at startup (FastAPI `li
 The page shows the chat on the left and the user's long-term memory on the right. "New conversation" starts a
 fresh conversation (memory stays), the "Previous conversations" dropdown goes back to an older one, and
 "Switch user" shows isolation. (A conversation is a LangGraph thread: its id is the `thread_id`.)
+
+### Streaming + human approval
+
+One endpoint, `POST /chat/stream`, handles both a new message and the answer to an approval. It returns
+one JSON event per line (`application/x-ndjson`):
+
+| Event | Meaning | What the page does |
+|---|---|---|
+| `{"type": "token", "text": "..."}` | a piece of the Head Chef's reply | appends it to the reply bubble |
+| `{"type": "interrupt", "actions": [...], "review_configs": [...]}` | a tool call needs approval; the stream stops | shows the approval card and disables Send |
+| `{"type": "completed"}` | the turn is finished | refreshes the conversation list and memory panel |
+| `{"type": "error", "message": "..."}` | something failed | shows the error in the chat |
+
+The flow: send `{message}` -> tokens stream -> the agent calls `save_preference` or `ask_grocery_agent` ->
+`interrupt` event -> the user picks **Approve**, **Edit** (the tool arguments are editable JSON) or **Reject** ->
+the page sends `{decisions: [...]}` to the same endpoint (one decision per action) -> the agent resumes and
+streams the rest of the reply. Errors: `409` if you send a message while an approval is pending (or decisions
+when none is pending), `400` if the number of decisions does not match the pending actions.
+
+In `frontend/app.js` one function, `streamChat(payload)`, does both the send and the resume.
 
 ## Teaching order
 
